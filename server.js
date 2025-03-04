@@ -3,9 +3,15 @@ const multer = require('multer');
 const { spawn } = require('child_process');
 const bodyParser = require('body-parser');
 const fs = require('fs');
+const http = require('http');
+const WebSocket = require('ws');
 
 const app = express();
 const port = 3000;
+
+// Create an HTTP server and WebSocket server
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
 
 app.use(bodyParser.json());
 
@@ -34,8 +40,20 @@ app.post('/train', (req, res) => {
     let outputData = '';
 
     pythonProcess.stdout.on('data', (data) => {
-        console.log(`Python Output: ${data}`);
-        outputData += data.toString();
+        const message = data.toString();
+        console.log(`Python Output: ${message}`);
+        outputData += message;
+
+        // Extract progress percentage from Python output (assumes Python prints progress like "Progress: 50%")
+        const progressMatch = message.match(/Progress:\s*(\d+)%/);
+        if (progressMatch) {
+            const progress = parseInt(progressMatch[1]);
+            wss.clients.forEach(client => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify({ progress }));
+                }
+            });
+        }
     });
 
     pythonProcess.stderr.on('data', (data) => {
@@ -45,6 +63,11 @@ app.post('/train', (req, res) => {
     pythonProcess.on('close', (code) => {
         if (code === 0) {
             res.json({ message: 'Training completed successfully.', output: outputData });
+            wss.clients.forEach(client => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify({ progress: 100 })); // Send final 100% progress
+                }
+            });
         } else {
             res.status(500).json({ error: 'Training failed.', output: outputData });
         }
@@ -52,6 +75,6 @@ app.post('/train', (req, res) => {
 });
 
 // Start server
-app.listen(port, () => {
+server.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
 });
