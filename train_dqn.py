@@ -57,8 +57,8 @@ class DQNAgent:
 if __name__ == "__main__":
     urban_file, highway_file, num_episodes, batch_size = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
     
-    urban_dataset = load_and_preprocess_dataset(urban_file)
-    highway_dataset = load_and_preprocess_dataset(highway_file)
+    urban_dataset = load_and_preprocess_dataset(urban_file).head(100)
+    highway_dataset = load_and_preprocess_dataset(highway_file).head(100)
     
     state_size = 4
     action_size = 4
